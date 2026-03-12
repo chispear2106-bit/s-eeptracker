@@ -50,9 +50,19 @@ exports.handler = async function(event) {
 
     const json = JSON.parse(response);
 
-    const text =
-      json.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "AI tidak memberi jawaban.";
+    let text = "AI tidak memberi jawaban.";
+
+if (
+  json &&
+  json.candidates &&
+  json.candidates[0] &&
+  json.candidates[0].content &&
+  json.candidates[0].content.parts &&
+  json.candidates[0].content.parts[0] &&
+  json.candidates[0].content.parts[0].text
+) {
+  text = json.candidates[0].content.parts[0].text;
+}
 
     return {
       statusCode: 200,
