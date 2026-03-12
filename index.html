@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#fff0f5">
+<link rel="manifest" href="manifest.json">
+<title>SleepTracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc, getDoc }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  const cfg={apiKey:"AIzaSyDdlBa5yGg0oDdyvCq9Ro9KAe3We4m4C90",authDomain:"sleep-tracker-da1aa.firebaseapp.com",projectId:"sleep-tracker-da1aa",storageBucket:"sleep-tracker-da1aa.firebasestorage.app",messagingSenderId:"626865606930",appId:"1:626865606930:web:df9e6f00a26cc633fde3cb"};
+  const app=initializeApp(cfg),db=getFirestore(app);
+  window.db=db;window.fsCol=collection;window.fsAdd=addDoc;window.fsDel=deleteDoc;
+  window.fsDoc=doc;window.fsSnap=onSnapshot;window.fsQuery=query;window.fsOrder=orderBy;
+  window.fsSet=setDoc;window.fsGet=getDoc;
+  window.dispatchEvent(new Event('dbReady'));
+</script>
+<style>
+/* ── TOKENS ── */
+:root {
+  /* Pink palette */
+  --pk-bg: #fff5f8;
+  --pk-bg2: #ffffff;
+  --pk-surface: #fff0f4;
+  --pk-border: #fcd5e0;
+  --pk-rose: #f43f7a;
+  --pk-rose2: #fb7aaa;
+  --pk-rose-light: #fff0f4;
+  --pk-text: #3d1a26;
+  --pk-muted: #b07080;
+  --pk-accent: #ff6b9d;
+
+  /* Blue palette */
+  --bl-bg: #f0f6ff;
+  --bl-bg2: #ffffff;
+  --bl-surface: #e8f1ff;
+  --bl-border: #c5d9f5;
+  --bl-navy: #1d4ed8;
+  --bl-blue: #3b82f6;
+  --bl-sky: #7dc4f7;
+  --bl-text: #0f2552;
+  --bl-muted: #6b8abf;
+
+  --ff-disp: 'DM Serif Display', serif;
+  --ff-body: 'Nunito', sans-serif;
+  --radius: 18px;
+  --radius-sm: 10px;
+}
+
+/* ── RESET ── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box }
+body { font-family: var(--ff-body); background: var(--pk-bg); color: var(--pk-text); min-height:100vh; overflow-x:hidden; -webkit-font-smoothing:antialiased }
+
+/* ── NAV ── */
+.nav {
+  position: fixed; bottom:0; left:0; right:0; z-index:100;
+  background: rgba(255,255,255,0.92); backdrop-filter: blur(20px);
+  border-top: 1.5px solid var(--pk-border);
+  display: grid; grid-template-columns: repeat(5,1fr);
+  padding: 8px 0 22px;
+  box-shadow: 0 -4px 24px rgba(244,63,122,0.06);
+}
+.nb {
+  background:none; border:none; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:6px 4px; color: var(--pk-muted);
+  font-family:var(--ff-body); font-size:.52rem; font-weight:700;
+  letter-spacing:.05em; text-transform:uppercase; transition:all .2s;
+}
+.nb .ni { font-size:1.2rem; transition:transform .2s }
+.nb.active { color: var(--pk-rose) }
+.nb.active .ni { transform: scale(1.18) }
+/* blue nav for AI + Stats */
+.nb.bl-mode { color: var(--bl-muted) }
+.nb.bl-mode.active { color: var(--bl-blue) }
+.nd {
+  width:22px; height:3px; border-radius:3px;
+  background: var(--pk-rose); opacity:0; margin-top:1px; transition:opacity .2s;
+}
+.nb.active .nd { opacity:1 }
+.nb.bl-mode.active .nd { background: var(--bl-blue) }
+
+/* ── PAGES ── */
+.page { display:none; position:relative; max-width:480px; margin:0 auto; padding:0 18px 100px; min-height:100vh }
+.page.active { display:block }
+
+/* ── PAGE HEADER ── */
+.ph { padding:28px 0 20px }
+.ph-eyebrow {
+  font-size:.68rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  color: var(--pk-rose2); margin-bottom:3px;
+}
+.ph-title {
+  font-family:var(--ff-disp); font-size:2rem; color: var(--pk-text); line-height:1.1;
+}
+.ph-title em { font-style:italic; color: var(--pk-rose) }
+
+/* Blue page header */
+.ph.bl .ph-eyebrow { color: var(--bl-sky) }
+.ph.bl .ph-title { color: var(--bl-text) }
+.ph.bl .ph-title em { color: var(--bl-blue) }
+
+/* ── CARD ── */
+.card {
+  background: var(--pk-bg2); border: 1.5px solid var(--pk-border);
+  border-radius: var(--radius); padding:18px; margin-bottom:14px;
+  box-shadow: 0 2px 12px rgba(244,63,122,0.05);
+}
+.card.bl {
+  background: var(--bl-bg2); border-color: var(--bl-border);
+  box-shadow: 0 2px 12px rgba(59,130,246,0.06);
+}
+.clbl {
+  font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color: var(--pk-muted); margin-bottom:12px;
+}
+.card.bl .clbl { color: var(--bl-muted) }
+
+/* ── LOVE TIMER ── */
+.timer-card {
+  background: linear-gradient(145deg, #ff6b9d, #f43f7a);
+  border-radius: var(--radius); padding:26px 20px; margin-bottom:14px;
+  text-align:center; position:relative; overflow:hidden;
+  box-shadow: 0 8px 32px rgba(244,63,122,0.28);
+}
+.timer-card::before {
+  content:''; position:absolute; top:-40px; right:-40px;
+  width:120px; height:120px; border-radius:50%;
+  background:rgba(255,255,255,0.08);
+}
+.timer-card::after {
+  content:''; position:absolute; bottom:-20px; left:-20px;
+  width:80px; height:80px; border-radius:50%;
+  background:rgba(255,255,255,0.06);
+}
+.t-days {
+  font-family:var(--ff-disp); font-size:5.5rem; font-weight:400; line-height:1;
+  color:#fff; letter-spacing:-.02em; position:relative;
+}
+.t-dlbl { font-size:.65rem; color:rgba(255,255,255,0.75); letter-spacing:.12em; text-transform:uppercase; margin:3px 0 18px }
+.t-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; position:relative }
+.t-box { background:rgba(255,255,255,0.18); border-radius:12px; padding:10px 6px; backdrop-filter:blur(4px) }
+.t-val { font-family:var(--ff-disp); font-size:1.5rem; color:#fff; line-height:1 }
+.t-unit { font-size:.5rem; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:.1em; margin-top:2px }
+.t-quote { font-size:.72rem; color:rgba(255,255,255,0.8); border-top:1px solid rgba(255,255,255,0.2); padding-top:12px; font-style:italic; line-height:1.6 }
+
+/* ── MOOD ── */
+.mood-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px }
+.mood-card {
+  background: var(--pk-bg2); border:1.5px solid var(--pk-border);
+  border-radius: var(--radius-sm); padding:14px 12px;
+}
+.mwho { font-size:.62rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--pk-rose); margin-bottom:10px }
+.mwho.t { color:#7c9fe8 }
+.mbtns { display:flex; gap:5px; flex-wrap:wrap }
+.mbtn { background:var(--pk-surface); border:1.5px solid var(--pk-border); border-radius:8px; padding:6px 8px; cursor:pointer; font-size:.95rem; transition:all .15s; line-height:1 }
+.mbtn:hover { transform:scale(1.12) }
+.mbtn.sm { background:#fff0f4; border-color:var(--pk-rose); box-shadow:0 2px 8px rgba(244,63,122,0.15) }
+.mbtn.st { background:#eff6ff; border-color:#3b82f6; box-shadow:0 2px 8px rgba(59,130,246,0.15) }
+.mlbl { font-size:.62rem; color:var(--pk-muted); margin-top:8px; min-height:16px }
+
+/* ── KANGEN ── */
+.kangen-wrap { margin-bottom:14px }
+.btn-kangen {
+  width:100%; padding:18px; border-radius: var(--radius); border:none; cursor:pointer;
+  background:linear-gradient(135deg,#fff0f4,#ffe4ed);
+  border:1.5px solid var(--pk-border); color:var(--pk-rose);
+  font-family:var(--ff-body); font-size:.9rem; font-weight:700;
+  transition:all .2s; position:relative; overflow:hidden;
+}
+.btn-kangen::before {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg,transparent,rgba(244,63,122,0.04),transparent);
+  animation:sheen 3s linear infinite;
+}
+@keyframes sheen { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+.btn-kangen:hover { background:linear-gradient(135deg,#ffe4ed,#ffd0e2); box-shadow:0 4px 20px rgba(244,63,122,0.18); transform:translateY(-2px) }
+.btn-kangen:active { transform:scale(.98) }
+.bki { display:flex; align-items:center; justify-content:center; gap:10px; position:relative }
+.bkicon { font-size:1.4rem; animation:hb 2s ease-in-out infinite }
+@keyframes hb { 0%,100%{transform:scale(1)} 50%{transform:scale(1.25)} }
+.ksub { font-size:.62rem; color:var(--pk-muted); text-align:center; margin-top:6px }
+
+/* ── STREAK ── */
+.streak-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px }
+.streak-card {
+  background:var(--pk-bg2); border:1.5px solid var(--pk-border);
+  border-radius: var(--radius-sm); padding:16px;
+}
+.swho { font-size:.62rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--pk-rose); margin-bottom:6px }
+.swho.t { color:#3b82f6 }
+.snum { font-family:var(--ff-disp); font-size:2.8rem; line-height:1; color:var(--pk-rose) }
+.snum.t { color:#3b82f6 }
+.slbl { font-size:.62rem; color:var(--pk-muted); margin-top:2px }
+
+/* ── SECTION DIVIDER ── */
+.sdiv {
+  font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--pk-muted); margin:16px 0 10px;
+  display:flex; align-items:center; gap:8px;
+}
+.sdiv::after { content:''; flex:1; height:1.5px; background:var(--pk-border); border-radius:2px }
+
+/* ── WHO PICKER ── */
+.who-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px }
+.who-btn {
+  padding:16px 12px; border-radius: var(--radius-sm);
+  border:1.5px solid var(--pk-border); background:var(--pk-bg2);
+  cursor:pointer; text-align:center; font-family:var(--ff-body);
+  color:var(--pk-muted); transition:all .2s;
+}
+.who-btn:hover { border-color:var(--pk-rose2) }
+.who-btn.wa { border-color:var(--pk-rose); background:#fff0f4; box-shadow:0 2px 12px rgba(244,63,122,0.1) }
+.who-btn.wb { border-color:#3b82f6; background:#eff6ff; box-shadow:0 2px 12px rgba(59,130,246,0.1) }
+.wemoji { font-size:1.6rem; display:block; margin-bottom:5px }
+.wname { font-size:.82rem; font-weight:700; color:var(--pk-text) }
+
+/* ── FORM ── */
+.field { margin-bottom:12px }
+.field label { display:block; font-size:.65rem; font-weight:700; color:var(--pk-muted); margin-bottom:6px; letter-spacing:.08em; text-transform:uppercase }
+input[type=time],input[type=date] {
+  width:100%; background:var(--pk-surface); border:1.5px solid var(--pk-border);
+  border-radius: var(--radius-sm); padding:12px 14px; color:var(--pk-text);
+  font-family:var(--ff-body); font-size:.9rem; outline:none;
+  transition:border-color .2s, box-shadow .2s;
+}
+input[type=time]:focus,input[type=date]:focus { border-color:var(--pk-rose); box-shadow:0 0 0 3px rgba(244,63,122,0.08) }
+input::-webkit-calendar-picker-indicator { cursor:pointer; opacity:.5 }
+textarea {
+  width:100%; background:var(--pk-surface); border:1.5px solid var(--pk-border);
+  border-radius: var(--radius-sm); padding:12px 14px; color:var(--pk-text);
+  font-family:var(--ff-body); font-size:.85rem; outline:none;
+  resize:none; min-height:80px; transition:border-color .2s; line-height:1.6;
+}
+textarea:focus { border-color:var(--pk-rose); box-shadow:0 0 0 3px rgba(244,63,122,0.07) }
+textarea::placeholder { color:var(--pk-muted) }
+.time-row { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+
+/* Blue form inputs */
+.bl-in {
+  background:#f0f6ff; border:1.5px solid var(--bl-border);
+  border-radius: var(--radius-sm); padding:12px 14px; color:var(--bl-text);
+  font-family:var(--ff-body); font-size:.85rem; outline:none;
+  transition:border-color .2s;
+}
+.bl-in:focus { border-color:var(--bl-blue); box-shadow:0 0 0 3px rgba(59,130,246,0.08) }
+.bl-in::placeholder { color:var(--bl-muted) }
+textarea.bl-in { resize:none; min-height:80px; line-height:1.6; width:100% }
+
+/* ── DUR BOX ── */
+.dur-box {
+  background:linear-gradient(135deg,#fff0f4,#ffe4ed);
+  border:1.5px solid var(--pk-border); border-radius: var(--radius-sm);
+  padding:14px; margin-bottom:14px; text-align:center; display:none;
+}
+.dur-val { font-family:var(--ff-disp); font-size:2.4rem; color:var(--pk-rose); line-height:1 }
+.dur-note { font-size:.65rem; color:var(--pk-muted); margin-top:4px }
+
+/* ── STARS ── */
+.stars { display:flex; gap:6px; padding:4px 0 }
+.star-btn { background:none; border:none; cursor:pointer; font-size:1.7rem; color:#f43f7a; opacity:.2; transition:opacity .15s, transform .15s }
+.star-btn.active { opacity:1 }
+.star-btn:hover { transform:scale(1.25); opacity:.6 }
+
+/* ── SAVE BTN ── */
+.btn-save {
+  width:100%; padding:15px; border:none; border-radius: var(--radius-sm); color:#fff;
+  font-family:var(--ff-body); font-size:.88rem; font-weight:800; cursor:pointer;
+  transition:transform .15s, box-shadow .2s; margin-top:14px;
+  background:linear-gradient(135deg, #f43f7a, #ff6b9d);
+  box-shadow:0 4px 16px rgba(244,63,122,0.28);
+}
+.btn-save:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(244,63,122,0.35) }
+.btn-save:active { transform:scale(.98) }
+.btn-save.bm { background:linear-gradient(135deg,#f43f7a,#ff6b9d) }
+.btn-save.bt { background:linear-gradient(135deg,#3b82f6,#60a5fa) }
+.btn-save.bl-btn { background:linear-gradient(135deg,#1d4ed8,#3b82f6); box-shadow:0 4px 16px rgba(59,130,246,0.25) }
+.btn-save.bl-btn:hover { box-shadow:0 8px 24px rgba(59,130,246,0.32) }
+.btn-save:disabled { opacity:.4; cursor:not-allowed; transform:none; box-shadow:none }
+
+/* ── PET PAGE ── */
+.pet-scene {
+  background:linear-gradient(145deg, #fff0f4, #fff5f8);
+  border:1.5px solid var(--pk-border); border-radius:var(--radius);
+  padding:28px 20px; margin-bottom:14px; text-align:center;
+  box-shadow:0 4px 20px rgba(244,63,122,0.07);
+}
+.pet-em {
+  font-size:6rem; display:block; line-height:1; margin-bottom:12px;
+  cursor:pointer; user-select:none; animation:pf 3.5s ease-in-out infinite;
+}
+@keyframes pf { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+.pet-nm { font-family:var(--ff-disp); font-size:1.7rem; color:var(--pk-text); line-height:1.2 }
+.pet-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  background:var(--pk-rose-light); border:1.5px solid var(--pk-border);
+  border-radius:20px; padding:4px 14px; font-size:.62rem; color:var(--pk-rose);
+  letter-spacing:.08em; text-transform:uppercase; margin:6px 0 10px; font-weight:700;
+}
+.pet-mood { font-size:.78rem; color:var(--pk-muted); margin:4px 0; font-style:italic }
+.pet-hts { font-size:1.1rem; letter-spacing:3px; margin-bottom:14px }
+.xp-tr { background:var(--pk-border); border-radius:20px; height:8px; margin:0 0 5px; overflow:hidden }
+.xp-bar { height:100%; border-radius:20px; background:linear-gradient(90deg,var(--pk-rose),var(--pk-rose2)); transition:width .8s cubic-bezier(.34,1.56,.64,1) }
+.xp-lbl { font-size:.62rem; color:var(--pk-muted); margin-bottom:14px }
+.evo-row { display:flex; justify-content:center; gap:22px; margin-bottom:16px }
+.evo-s { text-align:center; opacity:.2; filter:grayscale(1); transition:all .4s }
+.evo-s.on { opacity:1; filter:none }
+.eico { font-size:2rem; display:block }
+.elbl { font-size:.56rem; color:var(--pk-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.06em }
+.evo-s.on .elbl { color:var(--pk-rose) }
+.pet-nr { display:flex; gap:8px; justify-content:center }
+.pet-ni {
+  background:white; border:1.5px solid var(--pk-border); border-radius:10px;
+  padding:10px 14px; color:var(--pk-text); font-family:var(--ff-body);
+  font-size:.88rem; outline:none; width:160px; text-align:center; transition:border-color .2s;
+}
+.pet-ni:focus { border-color:var(--pk-rose) }
+.btn-rn {
+  background:linear-gradient(135deg,var(--pk-rose),var(--pk-rose2));
+  border:none; border-radius:10px; color:#fff; padding:10px 16px;
+  font-family:var(--ff-body); font-size:.78rem; font-weight:700; cursor:pointer;
+  transition:all .2s; box-shadow:0 2px 10px rgba(244,63,122,0.22);
+}
+.btn-rn:hover { transform:translateY(-1px) }
+.xp-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px }
+.xp-item { background:var(--pk-surface); border:1.5px solid var(--pk-border); border-radius:10px; padding:12px; text-align:center }
+.xpv { font-family:var(--ff-disp); font-size:1.1rem; color:var(--pk-rose) }
+.xpd { font-size:.62rem; color:var(--pk-muted); margin-top:2px }
+
+/* ── AI PAGE (BLUE THEME) ── */
+.ai-tabs {
+  display:flex; gap:6px; overflow-x:auto; padding-bottom:6px;
+  margin-bottom:18px; scrollbar-width:none;
+}
+.ai-tabs::-webkit-scrollbar { display:none }
+.ai-tab {
+  flex-shrink:0; padding:8px 14px; border-radius:20px; cursor:pointer;
+  font-family:var(--ff-body); font-size:.72rem; font-weight:700;
+  letter-spacing:.04em; white-space:nowrap;
+  background:var(--bl-bg2); border:1.5px solid var(--bl-border);
+  color:var(--bl-muted); transition:all .2s;
+}
+.ai-tab:hover { border-color:var(--bl-blue); color:var(--bl-blue) }
+.ai-tab.active { background:var(--bl-blue); color:#fff; border-color:var(--bl-blue); box-shadow:0 4px 14px rgba(59,130,246,0.25) }
+.ai-sec { display:none }
+.ai-sec.active { display:block; animation:fu .3s ease }
+@keyframes fu { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+.ai-card {
+  background:var(--bl-bg2); border:1.5px solid var(--bl-border);
+  border-radius:var(--radius); padding:20px; margin-bottom:14px;
+  box-shadow:0 2px 12px rgba(59,130,246,0.06);
+}
+.ai-card-hd { display:flex; align-items:center; gap:10px; margin-bottom:4px }
+.ac-icon { font-size:1.4rem }
+.ac-title { font-family:var(--ff-disp); font-size:1.15rem; color:var(--bl-text) }
+.ac-desc { font-size:.75rem; color:var(--bl-muted); margin-bottom:16px; line-height:1.6 }
+
+/* blue who picker */
+.who-row-bl { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px }
+.who-btn-bl {
+  padding:14px 12px; border-radius:10px;
+  border:1.5px solid var(--bl-border); background:var(--bl-bg2);
+  cursor:pointer; text-align:center; font-family:var(--ff-body);
+  color:var(--bl-muted); transition:all .2s;
+}
+.who-btn-bl:hover { border-color:var(--bl-blue) }
+.who-btn-bl.wa { border-color:#f43f7a; background:#fff5f8; color:#f43f7a; box-shadow:0 2px 10px rgba(244,63,122,0.1) }
+.who-btn-bl.wb { border-color:var(--bl-blue); background:#eff6ff; color:var(--bl-blue); box-shadow:0 2px 10px rgba(59,130,246,0.1) }
+.wea { font-size:1.5rem; display:block; margin-bottom:4px }
+.wna { font-size:.74rem; font-weight:700 }
+
+.btn-ai {
+  width:100%; padding:14px; border:none; border-radius:10px; color:#fff;
+  font-family:var(--ff-body); font-size:.82rem; font-weight:800; cursor:pointer;
+  transition:all .2s;
+  background:linear-gradient(135deg,#1d4ed8,#3b82f6);
+  box-shadow:0 4px 14px rgba(59,130,246,0.22);
+}
+.btn-ai:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(59,130,246,0.3) }
+.btn-ai:disabled { opacity:.4; cursor:not-allowed; transform:none; box-shadow:none }
+
+.chat-box {
+  background:var(--bl-surface); border:1.5px solid var(--bl-border);
+  border-radius:12px; padding:14px; min-height:140px; max-height:280px;
+  overflow-y:auto; margin-bottom:12px; font-size:.82rem; line-height:1.7;
+}
+.chat-box:empty::before { content:'Mulai bicara...'; color:var(--bl-muted); font-style:italic }
+.msg-u { text-align:right; margin-bottom:10px }
+.msg-u span { background:linear-gradient(135deg,#1d4ed8,#3b82f6); color:#fff; padding:8px 12px; border-radius:14px 14px 4px 14px; display:inline-block; font-size:.8rem; max-width:86% }
+.msg-a { margin-bottom:10px }
+.msg-a span { background:white; border:1.5px solid var(--bl-border); color:var(--bl-text); padding:8px 12px; border-radius:14px 14px 14px 4px; display:inline-block; font-size:.8rem; max-width:92%; line-height:1.65 }
+.msg-a.ld span { color:var(--bl-muted); font-style:italic }
+.chat-irow { display:flex; gap:8px }
+.chat-in {
+  flex:1; background:white; border:1.5px solid var(--bl-border); border-radius:10px;
+  padding:11px 14px; color:var(--bl-text); font-family:var(--ff-body); font-size:.82rem;
+  outline:none; transition:border-color .2s;
+}
+.chat-in:focus { border-color:var(--bl-blue); box-shadow:0 0 0 3px rgba(59,130,246,0.08) }
+.chat-in::placeholder { color:var(--bl-muted) }
+.btn-send {
+  background:linear-gradient(135deg,#1d4ed8,#3b82f6); border:none; border-radius:10px;
+  color:#fff; padding:11px 16px; font-size:1rem; cursor:pointer; transition:all .2s;
+  box-shadow:0 2px 10px rgba(59,130,246,0.2);
+}
+.btn-send:hover { transform:scale(1.05) }
+.btn-send:disabled { opacity:.4; cursor:not-allowed; transform:none }
+
+.ai-res {
+  background:var(--bl-surface); border:1.5px solid var(--bl-border);
+  border-radius:12px; padding:16px; margin-top:12px;
+  font-size:.82rem; line-height:1.75; color:var(--bl-text); display:none;
+  animation:fu .4s cubic-bezier(.34,1.56,.64,1);
+}
+.ai-res.show { display:block }
+.arlbl { font-size:.6rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--bl-blue); margin-bottom:10px }
+.ald { text-align:center; padding:18px; color:var(--bl-muted); font-style:italic; font-size:.82rem }
+.ald::after { content:''; animation:dots 1.2s steps(3,end) infinite }
+@keyframes dots { 0%{content:''} 33%{content:'.'} 66%{content:'..'} 100%{content:'...'} }
+
+.compat-wrap { text-align:center; padding:18px 0 }
+.compat-num { font-family:var(--ff-disp); font-size:4.5rem; line-height:1; color:var(--bl-navy) }
+.compat-sub { font-size:.62rem; color:var(--bl-muted); letter-spacing:.1em; text-transform:uppercase; margin-top:4px }
+.compat-tr { height:8px; border-radius:4px; background:var(--bl-border); margin:14px 0; overflow:hidden }
+.compat-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#1d4ed8,#60a5fa); transition:width 1.2s cubic-bezier(.34,1.56,.64,1) }
+
+.goal-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px }
+.goal-box { background:var(--bl-surface); border:1.5px solid var(--bl-border); border-radius:10px; padding:12px 14px }
+.goal-box label { display:block; font-size:.6rem; color:var(--bl-muted); margin-bottom:6px; font-weight:700; text-transform:uppercase; letter-spacing:.08em }
+.goal-in { background:none; border:none; color:var(--bl-navy); font-family:var(--ff-body); font-size:1.1rem; font-weight:700; outline:none; width:100% }
+
+/* ── STATS PAGE (BLUE) ── */
+.chart-card { background:white; border:1.5px solid var(--bl-border); border-radius:var(--radius); padding:18px; margin-bottom:14px; box-shadow:0 2px 12px rgba(59,130,246,0.05) }
+.chart-tabs { display:flex; gap:6px; margin-bottom:16px }
+.chart-tab { padding:8px 16px; border-radius:20px; border:1.5px solid var(--bl-border); background:none; cursor:pointer; font-family:var(--ff-body); font-size:.72rem; font-weight:700; color:var(--bl-muted); transition:all .2s }
+.chart-tab.active { background:var(--bl-blue); color:#fff; border-color:var(--bl-blue); box-shadow:0 4px 12px rgba(59,130,246,0.2) }
+.stats-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px }
+.stat-card { background:white; border:1.5px solid var(--bl-border); border-radius:var(--radius-sm); padding:18px; position:relative; overflow:hidden }
+.stat-card.sc-m { border-color:#fcd5e0 }
+.stat-card.sc-t { border-color:var(--bl-border) }
+.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; border-radius:4px 4px 0 0 }
+.stat-card.sc-m::before { background:linear-gradient(90deg,#f43f7a,#ff6b9d) }
+.stat-card.sc-t::before { background:linear-gradient(90deg,#1d4ed8,#60a5fa) }
+.swh { font-size:.62rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; margin-bottom:14px; margin-top:4px }
+.swh.m { color:#f43f7a }.swh.t { color:var(--bl-blue) }
+.si { margin-bottom:10px }
+.sv { font-family:var(--ff-disp); font-size:1.6rem; line-height:1; color:var(--bl-text) }
+.sl { font-size:.58rem; color:var(--bl-muted); letter-spacing:.06em; text-transform:uppercase; margin-top:2px }
+
+/* ── LOG PAGE ── */
+.filter-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:14px }
+.filter-btn { padding:9px 6px; border-radius:20px; border:1.5px solid var(--pk-border); background:var(--pk-bg2); cursor:pointer; font-family:var(--ff-body); font-size:.68rem; font-weight:700; color:var(--pk-muted); transition:all .2s }
+.filter-btn.active { background:var(--pk-rose); color:#fff; border-color:var(--pk-rose); box-shadow:0 3px 12px rgba(244,63,122,0.22) }
+.filter-btn.fm.active { background:var(--pk-rose); border-color:var(--pk-rose) }
+.filter-btn.ft.active { background:#3b82f6; border-color:#3b82f6; box-shadow:0 3px 12px rgba(59,130,246,0.22) }
+.log-entry {
+  background:white; border:1.5px solid var(--pk-border); border-radius:var(--radius-sm);
+  padding:14px 14px 14px 18px; margin-bottom:10px;
+  display:grid; grid-template-columns:1fr auto; gap:8px;
+  animation:fu .35s cubic-bezier(.34,1.56,.64,1);
+  position:relative; overflow:hidden;
+  box-shadow:0 2px 8px rgba(244,63,122,0.04);
+}
+.log-entry::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; border-radius:4px 0 0 4px }
+.log-entry.le-m::before { background:linear-gradient(to bottom,#f43f7a,#ff6b9d) }
+.log-entry.le-t::before { background:linear-gradient(to bottom,#1d4ed8,#60a5fa) }
+.etop { display:flex; align-items:center; gap:8px; margin-bottom:5px }
+.ebadge { font-size:.6rem; font-weight:800; padding:3px 10px; border-radius:20px; letter-spacing:.05em; text-transform:uppercase }
+.ebadge.m { color:#f43f7a; background:#fff0f4 }
+.ebadge.t { color:#3b82f6; background:#eff6ff }
+.edate { font-size:.62rem; color:var(--pk-muted) }
+.etime { font-family:var(--ff-disp); font-size:1.05rem; color:var(--pk-text); margin:3px 0 }
+.etime .arr { color:var(--pk-muted); font-size:.88rem }
+.ebot { display:flex; align-items:center; gap:8px; flex-wrap:wrap }
+.dp { font-size:.7rem; font-weight:700; padding:3px 10px; border-radius:20px }
+.dp-g { color:#16a34a; background:#f0fdf4 }
+.dp-y { color:#d97706; background:#fffbeb }
+.dp-r { color:#dc2626; background:#fef2f2 }
+.estars { font-size:.75rem; color:#f43f7a }
+.enote { font-size:.7rem; color:var(--pk-muted); font-style:italic; margin-top:6px; grid-column:1/-1; padding-top:6px; border-top:1px solid var(--pk-border) }
+.btn-del { background:#fff0f4; border:1.5px solid var(--pk-border); border-radius:8px; cursor:pointer; color:var(--pk-rose2); padding:6px 10px; transition:all .15s; align-self:start; font-size:.88rem }
+.btn-del:hover { background:var(--pk-rose); color:white }
+
+/* ── KANGEN POPUP ── */
+.kpop { position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center; background:rgba(255,240,248,0.75); backdrop-filter:blur(12px); opacity:0; pointer-events:none; transition:opacity .3s }
+.kpop.show { opacity:1; pointer-events:all }
+.kbox { background:white; border:2px solid var(--pk-border); border-radius:24px; padding:32px 26px; text-align:center; max-width:280px; animation:pi .4s cubic-bezier(.34,1.56,.64,1); box-shadow:0 12px 48px rgba(244,63,122,0.15) }
+@keyframes pi { from{transform:scale(.7);opacity:0} to{transform:scale(1);opacity:1} }
+.kem { font-size:3rem; display:block; margin-bottom:12px; animation:hb 1s ease-in-out infinite }
+.kmsg { font-family:var(--ff-disp); font-size:1.2rem; color:var(--pk-text); margin-bottom:5px }
+.ksub2 { font-size:.75rem; color:var(--pk-muted) }
+.btn-kclose { margin-top:20px; padding:11px 28px; background:linear-gradient(135deg,#f43f7a,#ff6b9d); border:none; border-radius:20px; color:#fff; font-family:var(--ff-body); font-size:.8rem; font-weight:800; cursor:pointer; transition:all .2s; box-shadow:0 4px 14px rgba(244,63,122,0.25) }
+.btn-kclose:hover { transform:translateY(-1px) }
+
+/* ── HEARTS ── */
+.hc { position:fixed; inset:0; z-index:190; pointer-events:none }
+.fh { position:absolute; bottom:-40px; font-size:1.5rem; animation:fup 2.5s ease-out forwards; opacity:0 }
+@keyframes fup { 0%{transform:translateY(0) scale(.5);opacity:1} 100%{transform:translateY(-80vh) scale(1.2);opacity:0} }
+
+/* ── TOAST ── */
+.toast { position:fixed; bottom:92px; left:50%; transform:translateX(-50%) translateY(60px); background:white; border:2px solid var(--pk-border); color:var(--pk-rose); padding:10px 22px; border-radius:20px; font-size:.78rem; font-weight:700; z-index:999; transition:transform .3s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; box-shadow:0 8px 28px rgba(244,63,122,0.12) }
+.toast.show { transform:translateX(-50%) translateY(0) }
+.empty { text-align:center; padding:40px 0; color:var(--pk-muted); font-size:.85rem; font-style:italic }
+</style>
+</head>
+<body>
+
+<div class="hc" id="hc"></div>
+
+<!-- KANGEN POPUP -->
+<div class="kpop" id="kpop">
+  <div class="kbox">
+    <span class="kem">💗</span>
+    <div class="kmsg" id="kmsg">Seseorang kangen kamu</div>
+    <div class="ksub2">sinyal kangen masuk 🌸</div>
+    <button class="btn-kclose" onclick="closeKangen()">OK, makasih 💗</button>
+  </div>
+</div>
+
+<!-- ═══ HOME ═══ -->
+<div class="page active" id="pageHome">
+  <div class="ph">
+    <div class="ph-eyebrow">Halo, selamat malam 🌙</div>
+    <div class="ph-title">Sleep<em>Tracker</em></div>
+  </div>
+
+  <div class="timer-card">
+    <div class="t-days" id="loveDays">—</div>
+    <div class="t-dlbl">hari bersama 💗</div>
+    <div class="t-grid">
+      <div class="t-box"><div class="t-val" id="tH">00</div><div class="t-unit">Jam</div></div>
+      <div class="t-box"><div class="t-val" id="tM">00</div><div class="t-unit">Menit</div></div>
+      <div class="t-box"><div class="t-val" id="tS">00</div><div class="t-unit">Detik</div></div>
+      <div class="t-box"><div class="t-val" id="tMs">00</div><div class="t-unit">ms</div></div>
+    </div>
+    <div class="t-quote" id="loveQuote"></div>
+  </div>
+
+  <div class="mood-row">
+    <div class="mood-card"><div class="mwho">🌸 Marsha</div><div class="mbtns" id="moodM"></div><div class="mlbl" id="moodMLbl">— belum set</div></div>
+    <div class="mood-card"><div class="mwho t">🌙 Tegar</div><div class="mbtns" id="moodT"></div><div class="mlbl" id="moodTLbl">— belum set</div></div>
+  </div>
+
+  <div class="kangen-wrap">
+    <button class="btn-kangen" onclick="sendKangen()">
+      <div class="bki"><span class="bkicon">💗</span><span>Kirim sinyal kangen</span></div>
+    </button>
+    <div class="ksub" id="ksubTxt"></div>
+  </div>
+
+  <div class="streak-row">
+    <div class="streak-card"><div class="swho">🌸 Marsha</div><div class="snum" id="mSt">0</div><div class="slbl">🔥 hari streak</div></div>
+    <div class="streak-card"><div class="swho t">🌙 Tegar</div><div class="snum t" id="tSt">0</div><div class="slbl">🔥 hari streak</div></div>
+  </div>
+
+  <div class="sdiv">Catat untuk siapa</div>
+  <div class="who-row">
+    <button class="who-btn" id="btnM" onclick="pickWho('marsha')"><span class="wemoji">🌸</span><span class="wname">Marsha</span></button>
+    <button class="who-btn" id="btnT" onclick="pickWho('tegar')"><span class="wemoji">🌙</span><span class="wname">Tegar</span></button>
+  </div>
+
+  <div class="card">
+    <div class="clbl">Detail Tidur</div>
+    <div class="field"><label>Tanggal</label><input type="date" id="sleepDate"></div>
+    <div class="time-row">
+      <div class="field"><label>Jam Tidur</label><input type="time" id="sleepTime" value="22:00"></div>
+      <div class="field"><label>Jam Bangun</label><input type="time" id="wakeTime" value="06:00"></div>
+    </div>
+    <div class="dur-box" id="durBox"><div class="dur-val" id="durVal">—</div><div class="dur-note" id="durNote"></div></div>
+    <div class="field"><label>Kualitas Tidur</label>
+      <div class="stars">
+        <button class="star-btn" onclick="setStar(1)">★</button>
+        <button class="star-btn" onclick="setStar(2)">★</button>
+        <button class="star-btn" onclick="setStar(3)">★</button>
+        <button class="star-btn" onclick="setStar(4)">★</button>
+        <button class="star-btn" onclick="setStar(5)">★</button>
+      </div>
+    </div>
+    <div class="field"><label>Catatan</label><textarea id="noteIn" placeholder="Mimpi apa? Susah tidur? Mood pagi?"></textarea></div>
+    <button class="btn-save" id="btnSave" onclick="saveEntry()">Simpan Catatan Tidur</button>
+  </div>
+</div>
+
+<!-- ═══ PET ═══ -->
+<div class="page" id="pagePet">
+  <div class="ph">
+    <div class="ph-eyebrow">Companion 🐾</div>
+    <div class="ph-title">Kucing <em>Kita</em></div>
+  </div>
+  <div class="pet-scene">
+    <span class="pet-em" id="petEm" onclick="petPat()">🐱</span>
+    <div class="pet-nm" id="petNm">???</div>
+    <div class="pet-badge">⭐ <span id="petLvl">Level 1 · Kitten</span></div>
+    <div class="pet-mood" id="petMood">Kasih nama dulu ya~</div>
+    <div class="pet-hts" id="petHts">🤍🤍🤍🤍🤍</div>
+    <div class="xp-tr"><div class="xp-bar" id="xpBar" style="width:0%"></div></div>
+    <div class="xp-lbl" id="xpLbl">0 / 10 XP</div>
+    <div class="evo-row">
+      <div class="evo-s on" id="evo0"><span class="eico">🐱</span><div class="elbl">Kitten</div></div>
+      <div class="evo-s" id="evo1"><span class="eico">😺</span><div class="elbl">Cat</div></div>
+      <div class="evo-s" id="evo2"><span class="eico">😸</span><div class="elbl">Royal</div></div>
+      <div class="evo-s" id="evo3"><span class="eico">🦁</span><div class="elbl">Legend</div></div>
+    </div>
+    <div class="pet-nr">
+      <input class="pet-ni" id="petNi" placeholder="Nama kucing..." maxlength="20">
+      <button class="btn-rn" onclick="savePetName()">Simpan</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="clbl">Cara Dapat XP</div>
+    <div class="xp-grid">
+      <div class="xp-item"><div class="xpv">+1</div><div class="xpd">Catat tidur</div></div>
+      <div class="xp-item"><div class="xpv">+2</div><div class="xpd">Rating 4–5★</div></div>
+      <div class="xp-item"><div class="xpv">+1</div><div class="xpd">Tidur 7–9 jam</div></div>
+      <div class="xp-item"><div class="xpv">+3</div><div class="xpd">Streak 3 hari</div></div>
+      <div class="xp-item"><div class="xpv">+5</div><div class="xpd">Streak 7 hari</div></div>
+      <div class="xp-item"><div class="xpv">+2</div><div class="xpd">Keduanya log</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ AI (BLUE) ═══ -->
+<div class="page" id="pageAI" style="background:var(--bl-bg)">
+  <div class="ph bl">
+    <div class="ph-eyebrow">Intelligence ✦</div>
+    <div class="ph-title">AI <em>System</em></div>
+  </div>
+
+  <div class="ai-tabs">
+    <button class="ai-tab active" onclick="switchAI('advisor',this)">💤 Advisor</button>
+    <button class="ai-tab" onclick="switchAI('curhat',this)">💬 Curhat</button>
+    <button class="ai-tab" onclick="switchAI('pesan',this)">💌 Pesan</button>
+    <button class="ai-tab" onclick="switchAI('dream',this)">🌙 Mimpi</button>
+    <button class="ai-tab" onclick="switchAI('compat',this)">🔮 Compat</button>
+    <button class="ai-tab" onclick="switchAI('moodai',this)">🧠 Mood</button>
+    <button class="ai-tab" onclick="switchAI('jurnal',this)">✍️ Jurnal</button>
+    <button class="ai-tab" onclick="switchAI('goal',this)">🎯 Goal</button>
+  </div>
+
+  <div class="ai-sec active" id="ai-advisor">
+    <div class="ai-card">
+      <div class="ai-card-hd"><span class="ac-icon">💤</span><div class="ac-title">Sleep Advisor</div></div>
+      <div class="ac-desc">Analisis pola tidur dan saran personal dari data terkini.</div>
+      <div class="who-row-bl">
+        <button class="who-btn-bl" id="adM" onclick="selW('adM','adT','advisor','marsha')"><span class="wea">🌸</span><span class="wna">Marsha</span></button>
+        <button class="who-btn-bl" id="adT" onclick="selW('adM','adT','advisor','tegar')"><span class="wea">🌙</span><span class="wna">Tegar</span></button>
+      </div>
+      <button class="btn-ai" onclick="runAdvisor()">Analisis Sekarang</button>
+      <div class="ai-res" id="advisorRes"><div class="arlbl">Hasil Analisis</div><div id="advisorTxt"></div></div>
+    </div>
+  </div>
+
+  <div class="ai-sec" id="ai-curhat">
+    <div class="ai-card">
+      <div class="ai-card-hd"><span class="ac-icon">💬</span><div class="ac-title">Curhat</div></div>
+      <div class="ac-desc">Cerita apa aja. AI dengerin tanpa judgement.</div>
+      <div class="chat-box" id="chatBox"></div>
+      <div class="chat-irow">
+        <input class="chat-in" id="chatIn" placeholder="Ketik sesuatu..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="btn-send" id="btnSend" onclick="sendChat()">↑</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-sec" id="ai-pesan">
+    <div class="ai-card">
+      <div class="ai-card-hd"><span class="ac-icon">💌</span><div class="ac-title">Tulis Pesan</div></div>
+      <div class="ac-desc">Ceritain situasinya, AI bantu bikin pesan yang tepat.</div>
+      <div class="who-row-bl" style="margin-bottom:12px">
+        <button class="who-btn-bl" id="psM" onclick="selW('psM','psT','pesan','marsha')"><span class="wea">🌸</span><span class="wna">Marsha</span></button>
+        <button class="who-btn-bl" id="psT" onclick="selW('psM','psT','pesan','tegar')"><span class="wea">🌙</span><span class="wna">Tegar</span></button>
+      </div>
+      <textarea class="bl-in" id="pesanIn" placeholder="Situasi / konteks..." style="margin-bottom:12px"></textarea>
+      <button class="btn-ai" onclick="runPesan()">Buatkan Pesan</button>
+      <div class="ai-res" id="pesanRes"><div class="arlbl">Pesan</div><div id="pesanTxt"></div></div>
+    </div>
+  </div>
+
+  <div class="ai-sec" id="ai-dream">
+    <div class="ai-card">
+      <div class="ai-card-hd"><span class="ac-icon">🌙</span><div class="ac-title">Interpretasi Mimpi</div></div>
+      <div class="ac-desc">Ceritain mimpi semalam, AI analisis maknanya.</div>
+      <textarea class="bl-in" id="dreamIn" placeholder="Semalam gua mimpi..." style="min-height:100px;margin-bottom:12px"></textarea>
+      <button class="btn-ai" onclick="runDream()">Interpretasi</button>
+      <div class="ai-res" id="dreamRes"><div class="arlbl">Interpretasi</div><div id="dreamTxt"></div></div>
+    </div>
+  </div>
+
+  <div class="ai-sec" id="ai-compat">
+    <div class="ai-card">
+      <div class="ai-card-hd"><span class="ac-icon">🔮</span><div class="ac-title">Sleep Compatibility</div></div>
+      <div class="ac-desc">Seberapa mirip pola tidur kalian? Score dari data nyata.</div>
+      <button class="btn-ai" onclick="runCompat()">Hitung Compatibility</button>
+      <div class="ai-res" id="compatRes">
+        <div class="compat-wrap">
+          <div class="compat-num" id="compatNum">—</div>
+          <div class="compat-sub">Sleep Compatibility Score</div>
+          <div class="compat-tr"><div class="compat-fill" id="compatFill" style="width:0%"></div></div>
+        </div>
+        <div class="arlbl">Analisis</div><div id="compatTxt"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-sec" id="ai-moodai">
+    <div class="ai-card">
+      <div class="ai-card-hd"><span class="ac-icon">🧠</span><div class="ac-title">Mood Analyzer</div></div>
+      <div class="ac-desc">Pola antara mood harian dan kualitas tidur.</div>
+      <div class="who-row-bl">
+        <button class="who-btn-bl" id="mdM" onclick="selW('mdM','mdT','moodai','marsha')"><span class="wea">🌸</span><span class="wna">Marsha</span></button>
+        <button class="who-btn-bl" id="mdT" onclick="selW('mdM','mdT','moodai','tegar')"><span class="wea">🌙</span><span class="wna">Tegar</span></button>
+      </div>
+      <button class="btn-ai" onclick="runMoodAI()">Analisis Mood</button>
+      <div class="ai-res" id="moodaiRes"><div class="arlbl">Hasil</div><div id="moodaiTxt"></div></div>
+    </div>
+  </div>
+
+  <div class="ai-sec" id="ai-jurnal">
+    <div class="ai-card">
+      <div class="ai-card-hd"><span class="ac-icon">✍️</span><div class="ac-title">Jurnal Otomatis</div></div>
+      <div class="ac-desc">AI generate jurnal singkat dari data tidur hari ini.</div>
+      <div class="who-row-bl">
+        <button class="who-btn-bl" id="jrM" onclick="selW('jrM','jrT','jurnal','marsha')"><span class="wea">🌸</span><span class="wna">Marsha</span></button>
+        <button class="who-btn-bl" id="jrT" onclick="selW('jrM','jrT','jurnal','tegar')"><span class="wea">🌙</span><span class="wna">Tegar</span></button>
+      </div>
+      <button class="btn-ai" onclick="runJurnal()">Generate Jurnal</button>
+      <div class="ai-res" id="jurnalRes"><div class="arlbl">Jurnal Hari Ini</div><div id="jurnalTxt"></div></div>
+    </div>
+  </div>
+
+  <div class="ai-sec" id="ai-goal">
+    <div class="ai-card">
+      <div class="ai-card-hd"><span class="ac-icon">🎯</span><div class="ac-title">Sleep Goal Coach</div></div>
+      <div class="ac-desc">Set target tidur, AI pantau progress dan kasih feedback.</div>
+      <div class="who-row-bl">
+        <button class="who-btn-bl" id="glM" onclick="selW('glM','glT','goal','marsha')"><span class="wea">🌸</span><span class="wna">Marsha</span></button>
+        <button class="who-btn-bl" id="glT" onclick="selW('glM','glT','goal','tegar')"><span class="wea">🌙</span><span class="wna">Tegar</span></button>
+      </div>
+      <div class="goal-row">
+        <div class="goal-box"><label>Tidur target</label><input class="goal-in" type="time" id="goalBed" value="22:30"></div>
+        <div class="goal-box"><label>Bangun target</label><input class="goal-in" type="time" id="goalWake" value="06:00"></div>
+      </div>
+      <button class="btn-ai" onclick="runGoal()">Cek Progress</button>
+      <div class="ai-res" id="goalRes"><div class="arlbl">Feedback Coach</div><div id="goalTxt"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STATS (BLUE) ═══ -->
+<div class="page" id="pageStats" style="background:var(--bl-bg)">
+  <div class="ph bl">
+    <div class="ph-eyebrow">Analytics ✦</div>
+    <div class="ph-title">Data <em>Tidur</em></div>
+  </div>
+  <div class="chart-card">
+    <div class="clbl" style="color:var(--bl-muted);margin-bottom:12px">Durasi 7 Hari Terakhir</div>
+    <div class="chart-tabs">
+      <button class="chart-tab active" onclick="switchChart('both',this)">Semua</button>
+      <button class="chart-tab" onclick="switchChart('marsha',this)">🌸 Marsha</button>
+      <button class="chart-tab" onclick="switchChart('tegar',this)">🌙 Tegar</button>
+    </div>
+    <canvas id="sleepChart" height="200"></canvas>
+  </div>
+  <div class="sdiv" style="border-color:var(--bl-border);color:var(--bl-muted)">
+    <span>Perbandingan</span>
+    <span style="flex:1;height:1.5px;background:var(--bl-border);border-radius:2px;display:block"></span>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card sc-m">
+      <div class="swh m">🌸 Marsha</div>
+      <div class="si"><div class="sv" id="mAvg">—</div><div class="sl">Rata-rata</div></div>
+      <div class="si"><div class="sv" id="mQ">—</div><div class="sl">Kualitas</div></div>
+      <div class="si"><div class="sv" id="mN">—</div><div class="sl">Total Log</div></div>
+      <div class="si"><div class="sv" id="mBest">—</div><div class="sl">Terlama</div></div>
+    </div>
+    <div class="stat-card sc-t">
+      <div class="swh t">🌙 Tegar</div>
+      <div class="si"><div class="sv" id="tAvg">—</div><div class="sl">Rata-rata</div></div>
+      <div class="si"><div class="sv" id="tQ">—</div><div class="sl">Kualitas</div></div>
+      <div class="si"><div class="sv" id="tN">—</div><div class="sl">Total Log</div></div>
+      <div class="si"><div class="sv" id="tBest">—</div><div class="sl">Terlama</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LOG ═══ -->
+<div class="page" id="pageLog">
+  <div class="ph">
+    <div class="ph-eyebrow">Riwayat 📋</div>
+    <div class="ph-title">Semua <em>Catatan</em></div>
+  </div>
+  <div class="filter-row">
+    <button class="filter-btn active" id="tabAll" onclick="setTab('all')">🌟 Semua</button>
+    <button class="filter-btn fm" id="tabM" onclick="setTab('marsha')">🌸 Marsha</button>
+    <button class="filter-btn ft" id="tabT" onclick="setTab('tegar')">🌙 Tegar</button>
+  </div>
+  <div id="logList"><div class="empty">Belum ada catatan 🌑<br><small>Mulai catat malam ini!</small></div></div>
+</div>
+
+<!-- NAV -->
+<nav class="nav">
+  <button class="nb active" id="nav0" onclick="goPage('pageHome',this,0)"><span class="ni">🌙</span><div class="nd"></div>Catat</button>
+  <button class="nb" id="nav1" onclick="goPage('pagePet',this,1)"><span class="ni">🐱</span><div class="nd"></div>Pet</button>
+  <button class="nb bl-mode" id="nav2" onclick="goPage('pageAI',this,2)"><span class="ni">🤖</span><div class="nd"></div>AI</button>
+  <button class="nb bl-mode" id="nav3" onclick="goPage('pageStats',this,3)"><span class="ni">📊</span><div class="nd"></div>Stats</button>
+  <button class="nb" id="nav4" onclick="goPage('pageLog',this,4)"><span class="ni">📋</span><div class="nd"></div>Log</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+
+var E=[],activeWho=null,selStars=0,activeTab='all',myChart=null,chartMode='both';
+var petData={name:''};var currentMoods={marsha:null,tegar:null};
+var aiWho={advisor:null,pesan:null,moodai:null,jurnal:null,goal:null};
+var chatHist=[],chatBusy=false,kangenCool=false;
+var LOVE=new Date('2025-05-08T00:00:00');
+var QUOTES=['"setiap malam yang kamu tidur, aku masih di sini 🌙"','"waktu terus berjalan, dan aku masih pilih kamu 💗"','"tidur yang baik, bangun dengan senyum 🌅"','"mimpi yang indah selalu bersamamu ✨"','"kamu alasan aku mau bangun tiap pagi 🌸"','"bersama kamu, malam pun terasa hangat 🌙"'];
+var MOODS=[{e:'😄',l:'Senang'},{e:'😐',l:'Biasa aja'},{e:'😔',l:'Sedih'},{e:'😤',l:'Kesal'},{e:'😴',l:'Ngantuk'}];
+var PLVL=[{n:'Kitten',e:'🐱',xp:10},{n:'Cat',e:'😺',xp:25},{n:'Royal Cat',e:'😸',xp:50},{n:'Legend',e:'🦁',xp:999}];
+
+document.getElementById('sleepDate').value=new Date().toISOString().split('T')[0];
+['sleepTime','wakeTime'].forEach(function(id){document.getElementById(id).addEventListener('change',calcDur)});
+
+function tick(){
+  var now=new Date(),d=now-LOVE,days=Math.floor(d/864e5),h=Math.floor((d%864e5)/36e5),m=Math.floor((d%36e5)/6e4),s=Math.floor((d%6e4)/1e3),ms=Math.floor((d%1e3)/10);
+  document.getElementById('loveDays').textContent=days;
+  document.getElementById('tH').textContent=p2(h);document.getElementById('tM').textContent=p2(m);
+  document.getElementById('tS').textContent=p2(s);document.getElementById('tMs').textContent=p2(ms);
+  document.getElementById('loveQuote').textContent=QUOTES[days%QUOTES.length];
+}
+function p2(n){return String(n).padStart(2,'0')}
+setInterval(tick,10);tick();
+
+function renderMood(who){
+  var isM=who==='marsha',k=isM?'moodM':'moodT',lk=k+'Lbl',today=new Date().toISOString().split('T')[0];
+  document.getElementById(k).innerHTML=MOODS.map(function(m,i){var sel=currentMoods[who]&&currentMoods[who].date===today&&currentMoods[who].idx===i;return '<button class="mbtn'+(sel?' s'+(isM?'m':'t'):'')+'" onclick="setMood(\''+who+'\','+i+')">'+m.e+'</button>';}).join('');
+  var lbl=document.getElementById(lk);
+  if(currentMoods[who]&&currentMoods[who].date===today){lbl.textContent=MOODS[currentMoods[who].idx].e+' '+MOODS[currentMoods[who].idx].l;lbl.style.color=isM?'var(--pk-rose)':'#3b82f6';}
+  else{lbl.textContent='— belum set';lbl.style.color='';}
+}
+function setMood(who,idx){var today=new Date().toISOString().split('T')[0];currentMoods[who]={idx:idx,date:today};window.fsSet(window.fsDoc(window.db,'mood',who),{idx:idx,date:today,ts:Date.now()}).catch(function(){});renderMood(who);toast(MOODS[idx].e+' Mood disimpan!');}
+function listenMoods(){['marsha','tegar'].forEach(function(w){window.fsSnap(window.fsDoc(window.db,'mood',w),function(s){if(s.exists()){currentMoods[w]=s.data();renderMood(w);}});});}
+renderMood('marsha');renderMood('tegar');
+
+function sendKangen(){if(!activeWho){toast('Pilih dulu Marsha atau Tegar!');return}if(kangenCool){toast('Tunggu sebentar ya...');return}kangenCool=true;setTimeout(function(){kangenCool=false},8000);var from=activeWho,to=activeWho==='marsha'?'tegar':'marsha';spawnHearts();window.fsSet(window.fsDoc(window.db,'kangen','latest'),{from:from,to:to,ts:Date.now(),seen:false}).catch(function(){});toast('💗 Kangen terkirim ke '+(to==='marsha'?'Marsha 🌸':'Tegar 🌙')+'!');}
+function spawnHearts(){var c=document.getElementById('hc'),hs=['💗','💕','💖','💓','✨','🌸'];for(var i=0;i<14;i++){(function(i){setTimeout(function(){var el=document.createElement('div');el.className='fh';el.textContent=hs[Math.floor(Math.random()*hs.length)];el.style.left=Math.random()*90+'%';el.style.fontSize=(1+Math.random()*1.2)+'rem';el.style.animationDuration=(1.8+Math.random()*1.5)+'s';c.appendChild(el);setTimeout(function(){el.remove()},4000);},i*100)})(i);}}
+function listenKangen(){window.fsSnap(window.fsDoc(window.db,'kangen','latest'),function(s){if(!s.exists())return;var d=s.data();if(!d.seen&&d.to===activeWho&&Date.now()-d.ts<30000){document.getElementById('kmsg').textContent=(d.from==='marsha'?'Marsha 🌸':'Tegar 🌙')+' lagi kangen kamu';document.getElementById('kpop').classList.add('show');spawnHearts();window.fsSet(window.fsDoc(window.db,'kangen','latest'),Object.assign({},d,{seen:true})).catch(function(){});}});}
+function closeKangen(){document.getElementById('kpop').classList.remove('show')}
+
+function calcXP(){var xp=0;E.forEach(function(e){xp+=1;if(e.stars>=4)xp+=2;if(e.mins>=420&&e.mins<=540)xp+=1;});var today=new Date().toISOString().split('T')[0];if(E.some(function(e){return e.who==='marsha'&&e.date===today})&&E.some(function(e){return e.who==='tegar'&&e.date===today}))xp+=2;var ms=calcStreak(E,'marsha'),ts=calcStreak(E,'tegar');if(ms>=7||ts>=7)xp+=5;else if(ms>=3||ts>=3)xp+=3;return xp;}
+function getPL(xp){var t=0;for(var i=0;i<PLVL.length-1;i++){t+=PLVL[i].xp;if(xp<t)return i;}return PLVL.length-1;}
+function getPP(xp){var t=0;for(var i=0;i<PLVL.length-1;i++){if(xp<t+PLVL[i].xp)return{cur:xp-t,max:PLVL[i].xp};t+=PLVL[i].xp;}return{cur:xp-t,max:999};}
+function renderPet(){var xp=calcXP(),li=getPL(xp),prog=getPP(xp),lv=PLVL[li];document.getElementById('petEm').textContent=lv.e;document.getElementById('petLvl').textContent='Level '+(li+1)+' · '+lv.n;document.getElementById('xpBar').style.width=Math.min(100,Math.round(prog.cur/prog.max*100))+'%';document.getElementById('xpLbl').textContent=prog.cur+' / '+prog.max+' XP';var recent=E[0],mood='Nunggu kalian catat tidur...',hearts='🤍🤍🤍🤍🤍';if(recent){var avg=E.slice(0,5).reduce(function(a,e){return a+e.stars},0)/Math.min(E.length,5);if(avg>=4){mood='Kalian tidur nyenyak, aku senang!';hearts='❤️❤️❤️❤️❤️';}else if(avg>=3){mood='Lumayan baik tidurnya.';hearts='❤️❤️❤️❤️🤍';}else if(avg>=2){mood='Kurang tidur nih, khawatir juga.';hearts='❤️❤️❤️🤍🤍';}else{mood='Tidurnya kurang banget...';hearts='❤️🤍🤍🤍🤍';}}document.getElementById('petMood').textContent=mood;document.getElementById('petHts').textContent=hearts;document.getElementById('petNm').textContent=petData.name||'???';for(var i=0;i<4;i++)document.getElementById('evo'+i).classList.toggle('on',i<=li);}
+function petPat(){var msgs=['Purrr~ 🐱','Makasih sudah perhatian!','Meoow! 💕','Jangan lupa tidur cukup ya.','Kalian pasangan yang baik 🌸'];toast(msgs[Math.floor(Math.random()*msgs.length)]);}
+function savePetName(){var name=document.getElementById('petNi').value.trim();if(!name){toast('Masukkan nama dulu!');return}petData.name=name;localStorage.setItem('petName',name);document.getElementById('petNi').value='';renderPet();toast('🐱 Nama kucing: '+name);window.fsSet(window.fsDoc(window.db,'pet','shared'),{name:name,ts:Date.now()}).catch(function(){});}
+function loadPetName(){var l=localStorage.getItem('petName');if(l){petData.name=l;return;}window.fsGet(window.fsDoc(window.db,'pet','shared')).then(function(d){if(d.exists()&&d.data().name){petData.name=d.data().name;renderPet();}}).catch(function(){});}
+
+async function callAI(sys,prompt){
+  var r=await fetch('/.netlify/functions/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[{role:'user',content:prompt}]})});
+  var d=await r.json();return d.content[0].text;
+}
+function sSum(who){var en=E.filter(function(e){return e.who===who}).slice(0,7);if(!en.length)return 'Belum ada data.';return en.map(function(e){return e.date+': tidur '+e.sleep+' bangun '+e.wake+' ('+Math.floor(e.mins/60)+'j'+e.mins%60+'m, '+e.stars+'★)'}).join('\n');}
+function mSum(who){return currentMoods[who]?'Mood: '+MOODS[currentMoods[who].idx].l:'Belum ada data mood.';}
+
+function selW(id1,id2,type,who){aiWho[type]=who;document.getElementById(id1).className='who-btn-bl'+(who==='marsha'?' wa':'');document.getElementById(id2).className='who-btn-bl'+(who==='tegar'?' wb':'');}
+
+async function runAI(secId,resId,txtId,type,sys,prompt,load,done){
+  if(type&&!aiWho[type]){toast('Pilih dulu siapa!');return}
+  var btn=document.querySelector('#ai-'+secId+' .btn-ai');
+  btn.disabled=true;btn.textContent=load+'...';
+  document.getElementById(resId).classList.add('show');
+  document.getElementById(txtId).innerHTML='<div class="ald">'+load+'</div>';
+  try{var t=await callAI(sys,prompt);document.getElementById(txtId).textContent=t;}
+  catch(e){document.getElementById(txtId).textContent='Gagal memuat. Cek koneksi internet.';}
+  btn.disabled=false;btn.textContent=done;
+}
+function runAdvisor(){runAI('advisor','advisorRes','advisorTxt','advisor','Lo adalah sleep advisor yang ngomongnya kayak temen deket, gaul gen z. Bahasa Indonesia campur english yang natural. Jujur tapi supportif, ga ceramah, ga kaku. Boleh pake kata kayak ngl, fr, literally, gaskeun, valid banget, dsb. Maks 150 kata.','Data tidur '+aiWho.advisor+':\n'+sSum(aiWho.advisor)+'\nStreak: '+calcStreak(E,aiWho.advisor)+'\nAnalisis pola tidurnya dan kasih 2-3 saran actionable.','Ngecek data...','Analisis Sekarang');}
+function runPesan(){var s=document.getElementById('pesanIn').value.trim();if(!s){toast('Isi situasinya dulu!');return}runAI('pesan','pesanRes','pesanTxt','pesan','Lo nulis pesan buat pasangan. Vibesnya sweet tapi ga cringe, natural gen z, genuine dari hati. Langsung tulis pesannya aja tanpa intro. Maks 80 kata.','Pesan untuk '+aiWho.pesan+'. Situasi: '+s,'Nulis pesan...','Buatkan Pesan');}
+function runDream(){var d=document.getElementById('dreamIn').value.trim();if(!d){toast('Ceritain dulu mimpinya!');return}runAI('dream','dreamRes','dreamTxt',null,'Lo interpreter mimpi yang seru dan relatable. Bahasa gaul gen z, fun tapi ada insight-nya. Boleh pake emoji sesekali. Maks 120 kata.','Lagi mikir...','Interpretasi');}
+async function runCompat(){
+  var btn=document.querySelector('#ai-compat .btn-ai');btn.disabled=true;btn.textContent='Menghitung...';
+  document.getElementById('compatRes').classList.add('show');
+  document.getElementById('compatTxt').innerHTML='<div class="ald">Menghitung</div>';
+  try{
+    var mE=E.filter(function(e){return e.who==='marsha'}).slice(0,7),tE=E.filter(function(e){return e.who==='tegar'}).slice(0,7),score=50;
+    if(mE.length&&tE.length){var mA=mE.reduce(function(a,e){return a+e.mins},0)/mE.length,tA=tE.reduce(function(a,e){return a+e.mins},0)/tE.length,mS=mE.reduce(function(a,e){return a+e.stars},0)/mE.length,tS=tE.reduce(function(a,e){return a+e.stars},0)/tE.length;score=Math.max(20,Math.min(99,100-Math.round(Math.abs(mA-tA)/5)+(mS+tS)*3));}
+    document.getElementById('compatNum').textContent=score+'%';document.getElementById('compatFill').style.width=score+'%';
+    var t=await callAI('Lo analisis sleep compatibility dua orang dengan gaya gen z yang fun. Kasih insight yang genuine bukan basa basi. Bahasa gaul Indonesia. Maks 100 kata.','Marsha:\n'+sSum('marsha')+'\n\nTegar:\n'+sSum('tegar')+'\nScore: '+score+'%');
+    document.getElementById('compatTxt').textContent=t;
+  }catch(e){document.getElementById('compatTxt').textContent='Gagal. Cek koneksi.';}
+  btn.disabled=false;btn.textContent='Hitung Compatibility';
+}
+function runMoodAI(){runAI('moodai','moodaiRes','moodaiTxt','moodai','Lo analisis pola mood dan tidur kayak bestie yang perhatian. Bahasa gaul gen z, jujur, relatable. Kasih insight yang beneran berguna bukan klise. Maks 120 kata.','Data tidur '+aiWho.moodai+':\n'+sSum(aiWho.moodai)+'\n'+mSum(aiWho.moodai)+'\nAnalisis hubungan pola tidur dan mood-nya.','Ngecek mood...','Analisis Mood');}
+function runJurnal(){var today=new Date().toISOString().split('T')[0],e=E.find(function(x){return x.who===aiWho.jurnal&&x.date===today}),info=e?'Tidur '+e.sleep+' bangun '+e.wake+' ('+Math.floor(e.mins/60)+'j'+e.mins%60+'m, '+e.stars+'★)':'Belum ada log.',mood=currentMoods[aiWho.jurnal]?MOODS[currentMoods[aiWho.jurnal].idx].l:'tidak diketahui';runAI('jurnal','jurnalRes','jurnalTxt','jurnal','Tulis jurnal harian dari sudut pandang orang pertama (aku). Vibesnya kayak nulis di notes HP sendiri, jujur, relatable, bahasa gaul gen z yang natural. Ga perlu formal. Maks 100 kata.','Jurnal untuk '+aiWho.jurnal+'.\n'+info+'\nMood: '+mood+'\nData terkini:\n'+sSum(aiWho.jurnal),'Membuat','Generate Jurnal');}
+function runGoal(){var bed=document.getElementById('goalBed').value,wake=document.getElementById('goalWake').value;runAI('goal','goalRes','goalTxt','goal','Lo sleep coach yang ngomongnya kayak temen yang genuinely peduli, bukan coach kaku. Bahasa gaul gen z, jujur, no cap. Kasih 2 saran yang beneran bisa dilakuin. Maks 130 kata.','Target '+aiWho.goal+': tidur '+bed+', bangun '+wake+'.\nAktual:\n'+sSum(aiWho.goal)+'\nStreak: '+calcStreak(E,aiWho.goal)+'\nEvaluasi progress dan kasih feedback.','Ngecek...','Cek Progress');}
+
+async function sendChat(){
+  if(chatBusy)return;var inp=document.getElementById('chatIn'),msg=inp.value.trim();if(!msg)return;
+  inp.value='';chatBusy=true;document.getElementById('btnSend').disabled=true;
+  addMsg('u',msg);chatHist.push({role:'user',content:msg});var ld=addMsg('a','...','ld');
+  try{var r=await fetch('/.netlify/functions/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:'Lo adalah temen deket yang dengerin cerita. Bahasa gaul gen z, empatik, ga judgmental, ga lebay. Respons singkat dan natural banget kayak chat sama bestie. Jangan kasih solusi kecuali diminta.',messages:chatHist})});var d=await r.json(),reply=d.content[0].text;chatHist.push({role:'assistant',content:reply});ld.className='msg-a';ld.querySelector('span').textContent=reply;}
+  catch(e){ld.querySelector('span').textContent='Gagal merespons.';}
+  var box=document.getElementById('chatBox');box.scrollTop=box.scrollHeight;chatBusy=false;document.getElementById('btnSend').disabled=false;
+}
+function addMsg(r,t,ex){var box=document.getElementById('chatBox'),d=document.createElement('div');d.className=(r==='u'?'msg-u':'msg-a')+(ex?' '+ex:'');d.innerHTML='<span>'+t+'</span>';box.appendChild(d);box.scrollTop=box.scrollHeight;return d;}
+function switchAI(s,btn){document.querySelectorAll('.ai-sec').forEach(function(x){x.classList.remove('active')});document.querySelectorAll('.ai-tab').forEach(function(x){x.classList.remove('active')});document.getElementById('ai-'+s).classList.add('active');btn.classList.add('active');}
+
+function renderChart(){
+  var ctx=document.getElementById('sleepChart').getContext('2d');
+  var days=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);days.push(d.toISOString().split('T')[0]);}
+  var labels=days.map(function(d){return new Date(d).toLocaleDateString('id-ID',{weekday:'short',day:'numeric'})});
+  function gh(who,date){var f=E.find(function(e){return e.who===who&&e.date===date});return f?parseFloat((f.mins/60).toFixed(1)):0;}
+  var ds=[];
+  if(chartMode==='both'||chartMode==='marsha')ds.push({label:'🌸 Marsha',data:days.map(function(d){return gh('marsha',d)}),backgroundColor:'rgba(244,63,122,0.18)',borderColor:'rgba(244,63,122,0.8)',borderWidth:2,borderRadius:8});
+  if(chartMode==='both'||chartMode==='tegar')ds.push({label:'🌙 Tegar',data:days.map(function(d){return gh('tegar',d)}),backgroundColor:'rgba(59,130,246,0.18)',borderColor:'rgba(59,130,246,0.8)',borderWidth:2,borderRadius:8});
+  if(myChart)myChart.destroy();
+  myChart=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:ds},options:{responsive:true,plugins:{legend:{labels:{color:'#6b8abf',font:{size:11},boxRadius:4}}},scales:{x:{ticks:{color:'#6b8abf',font:{size:10}},grid:{color:'rgba(59,130,246,0.06)'}},y:{ticks:{color:'#6b8abf',font:{size:10},callback:function(v){return v+'j'}},grid:{color:'rgba(59,130,246,0.06)'},min:0,max:12}}}});
+}
+function switchChart(m,btn){chartMode=m;document.querySelectorAll('.chart-tab').forEach(function(b){b.classList.remove('active')});btn.classList.add('active');renderChart();}
+
+function calcStreak(entries,who){var days=Array.from(new Set(entries.filter(function(e){return e.who===who}).map(function(e){return e.date}))).sort().reverse();if(!days.length)return 0;var streak=0,cur=new Date();cur.setHours(0,0,0,0);for(var i=0;i<days.length;i++){var diff=Math.round((cur-new Date(days[i]))/864e5);if(diff===streak)streak++;else break;}return streak;}
+function calcDur(){var s=document.getElementById('sleepTime').value,w=document.getElementById('wakeTime').value;if(!s||!w)return;var m=dm(s,w),h=Math.floor(m/60),mn=m%60;document.getElementById('durBox').style.display='block';document.getElementById('durVal').textContent=h+'j '+mn+'m';document.getElementById('durNote').textContent=h<5?'😰 Kurang banget':h<7?'😐 Idealnya 7–9 jam':h<=9?'✅ Durasi ideal!':'💤 Terlalu lama?';}
+function dm(s,e){var a=s.split(':').map(Number),b=e.split(':').map(Number),t=(b[0]*60+b[1])-(a[0]*60+a[1]);return t<0?t+1440:t}
+function setStar(n){selStars=n;document.querySelectorAll('.star-btn').forEach(function(b,i){b.classList.toggle('active',i<n)})}
+function pickWho(who){activeWho=who;document.getElementById('btnM').className='who-btn'+(who==='marsha'?' wa':'');document.getElementById('btnT').className='who-btn'+(who==='tegar'?' wb':'');var btn=document.getElementById('btnSave');btn.className='btn-save '+(who==='marsha'?'bm':'bt');btn.textContent='Simpan Tidur '+(who==='marsha'?'Marsha 🌸':'Tegar 🌙');listenKangen();}
+function saveEntry(){if(!activeWho){toast('Pilih dulu Marsha atau Tegar!');return}var d=document.getElementById('sleepDate').value,s=document.getElementById('sleepTime').value,w=document.getElementById('wakeTime').value,n=document.getElementById('noteIn').value.trim();if(!d||!s||!w){toast('Isi tanggal & jam dulu!');return}if(!selStars){toast('Pilih kualitas tidur dulu!');return}window.fsAdd(window.fsCol(window.db,'entries'),{who:activeWho,date:d,sleep:s,wake:w,mins:dm(s,w),stars:selStars,note:n,ts:Date.now()}).then(function(){selStars=0;document.querySelectorAll('.star-btn').forEach(function(b){b.classList.remove('active')});document.getElementById('noteIn').value='';document.getElementById('durBox').style.display='none';document.getElementById('sleepDate').value=new Date().toISOString().split('T')[0];toast('✅ Tersimpan!');}).catch(function(){toast('❌ Gagal simpan!')});}
+function delEntry(id){window.fsDel(window.fsDoc(window.db,'entries',id)).catch(function(){toast('Gagal hapus!')})}
+function setTab(t){activeTab=t;document.getElementById('tabAll').classList.toggle('active',t==='all');document.getElementById('tabM').classList.toggle('active',t==='marsha');document.getElementById('tabT').classList.toggle('active',t==='tegar');render();}
+function render(){var L=document.getElementById('logList'),F=activeTab==='all'?E:E.filter(function(e){return e.who===activeTab});if(!F.length){L.innerHTML='<div class="empty">Belum ada catatan 🌑<br><small>Mulai catat malam ini!</small></div>';return}L.innerHTML=F.map(function(e){var h=Math.floor(e.mins/60),m=e.mins%60,dc=h>=7?'dp-g':h>=5?'dp-y':'dp-r',ds=new Date(e.date).toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});return '<div class="log-entry le-'+e.who+'"><div><div class="etop"><span class="ebadge '+e.who[0]+'">'+(e.who==='marsha'?'🌸 Marsha':'🌙 Tegar')+'</span><span class="edate">'+ds+'</span></div><div class="etime">'+e.sleep+' <span class="arr">→</span> '+e.wake+'</div><div class="ebot"><span class="dp '+dc+'">'+h+'j '+m+'m</span><span class="estars">'+'★'.repeat(e.stars)+'☆'.repeat(5-e.stars)+'</span></div>'+(e.note?'<div class="enote">'+e.note+'</div>':'')+' </div><button class="btn-del" onclick="delEntry(\''+e.id+'\')">✕</button></div>';}).join('');}
+function stats(){function calc(arr,p){if(!arr.length){['Avg','Q','N','Best'].forEach(function(x){document.getElementById(p+x).textContent='—'});return}var am=Math.round(arr.reduce(function(a,e){return a+e.mins},0)/arr.length),best=Math.max.apply(null,arr.map(function(e){return e.mins}));document.getElementById(p+'Avg').textContent=Math.floor(am/60)+'j'+(am%60?am%60+'m':'');document.getElementById(p+'Q').textContent=(arr.reduce(function(a,e){return a+e.stars},0)/arr.length).toFixed(1)+'★';document.getElementById(p+'N').textContent=arr.length;document.getElementById(p+'Best').textContent=Math.floor(best/60)+'j'+(best%60?best%60+'m':'');}calc(E.filter(function(e){return e.who==='marsha'}),'m');calc(E.filter(function(e){return e.who==='tegar'}),'t');document.getElementById('mSt').textContent=calcStreak(E,'marsha');document.getElementById('tSt').textContent=calcStreak(E,'tegar');}
+
+function goPage(id,btn,idx){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  document.querySelectorAll('.nb').forEach(function(b){b.classList.remove('active')});
+  document.getElementById(id).classList.add('active');btn.classList.add('active');
+  // change body bg based on page
+  var isBlue=(idx===2||idx===3);
+  document.body.style.background=isBlue?'var(--bl-bg)':'var(--pk-bg)';
+  // update toast color for blue pages
+  var toast=document.getElementById('toast');
+  if(isBlue){toast.style.color='var(--bl-blue)';toast.style.borderColor='var(--bl-border)';}
+  else{toast.style.color='var(--pk-rose)';toast.style.borderColor='var(--pk-border)';}
+  if(id==='pageStats')renderChart();
+  if(id==='pagePet')renderPet();
+}
+
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2500);}
+
+window.addEventListener('dbReady',function(){
+  loadPetName();listenMoods();
+  var q=window.fsQuery(window.fsCol(window.db,'entries'),window.fsOrder('ts','desc'));
+  window.fsSnap(q,function(snap){E=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});render();stats();renderPet();});
+});
+</script>
+</body>
+</html>
