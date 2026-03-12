@@ -1,76 +1,79 @@
 const https = require("https");
 
-exports.handler = async function (event) {
+exports.handler = async function(event) {
+
   if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+    return {
+      statusCode: 405,
+      body: "Method Not Allowed"
+    };
   }
 
   const API_KEY = process.env.GEMINI_API_KEY;
 
-  const body = JSON.parse(event.body);
-  const userMsg = body.messages?.[body.messages.length - 1]?.content || "Hello";
+  try {
 
-  const postData = JSON.stringify({
-    contents: [
-      {
+    const body = JSON.parse(event.body || "{}");
+    const userMsg = body.messages?.slice(-1)[0]?.content || "Hello";
+
+    const payload = JSON.stringify({
+      contents: [{
         parts: [{ text: userMsg }]
+      }]
+    });
+
+    const options = {
+      hostname: "generativelanguage.googleapis.com",
+      path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
       }
-    ]
-  });
+    };
 
-  const options = {
-    hostname: "generativelanguage.googleapis.com",
-    path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(postData)
-    }
-  };
+    const response = await new Promise((resolve, reject) => {
 
-  return new Promise((resolve) => {
-    const req = https.request(options, (res) => {
-      let data = "";
+      const req = https.request(options, res => {
 
-      res.on("data", (chunk) => {
-        data += chunk;
+        let data = "";
+
+        res.on("data", chunk => data += chunk);
+        res.on("end", () => resolve(data));
+
       });
 
-      res.on("end", () => {
-        try {
-          const json = JSON.parse(data);
+      req.on("error", reject);
+      req.write(payload);
+      req.end();
 
-          const text =
-            json.candidates?.[0]?.content?.parts?.[0]?.text ||
-            "AI tidak memberi jawaban.";
-
-          resolve({
-            statusCode: 200,
-            headers: {
-              "Access-Control-Allow-Origin": "*",
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              content: [{ type: "text", text }]
-            })
-          });
-        } catch (e) {
-          resolve({
-            statusCode: 500,
-            body: JSON.stringify({ error: data })
-          });
-        }
-      });
     });
 
-    req.on("error", (err) => {
-      resolve({
-        statusCode: 500,
-        body: JSON.stringify({ error: err.message })
-      });
-    });
+    const json = JSON.parse(response);
 
-    req.write(postData);
-    req.end();
-  });
+    const text =
+      json.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "AI tidak memberi jawaban.";
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        content: [{ type: "text", text }]
+      })
+    };
+
+  } catch (err) {
+
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: err.message
+      })
+    };
+
+  }
+
 };
