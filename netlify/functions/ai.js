@@ -21,9 +21,19 @@ exports.handler = async function(event) {
       userMsg = body.messages[body.messages.length - 1].content;
     }
 
-    if (!userMsg) {
-      userMsg = "hello";
-    }
+    let userMsg = "";
+
+if (body.messages && body.messages.length) {
+  userMsg = body.messages[body.messages.length - 1].content;
+}
+
+if (body.system) {
+  userMsg = body.system + "\n\n" + userMsg;
+}
+
+if (!userMsg || userMsg.trim() === "") {
+  userMsg = "beri saran tidur sehat";
+}
 
     const payload = JSON.stringify({
       model: "llama3-8b-8192",
