@@ -1,18 +1,19 @@
 const https = require('https');
 
 exports.handler = async function(event) {
+
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
   const API_KEY = process.env.GEMINI_API_KEY;
+
   if (!API_KEY) {
     return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
   }
 
   const body = JSON.parse(event.body);
-  
-  // Build Gemini prompt from system + messages
+
   const systemText = body.system || '';
   const userMsg = body.messages[body.messages.length - 1].content;
   const fullPrompt = systemText ? `${systemText}\n\n${userMsg}` : userMsg;
@@ -23,9 +24,10 @@ exports.handler = async function(event) {
   });
 
   return new Promise((resolve) => {
+
     const options = {
       hostname: 'generativelanguage.googleapis.com',
-      path: `/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
+      path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -34,33 +36,55 @@ exports.handler = async function(event) {
     };
 
     const req = https.request(options, (res) => {
+
       let data = '';
+
       res.on('data', (chunk) => { data += chunk; });
+
       res.on('end', () => {
+
         try {
+
           const parsed = JSON.parse(data);
-          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || 'Gagal mendapat respons.';
+
+          const text =
+            parsed.candidates?.[0]?.content?.parts?.[0]?.text ||
+            "AI tidak memberi jawaban.";
+
           resolve({
             statusCode: 200,
             headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*'
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
             },
             body: JSON.stringify({
-              content: [{ type: 'text', text: text }]
+              content: [{ text }]
             })
           });
-        } catch(e) {
-          resolve({ statusCode: 500, body: JSON.stringify({ error: 'Parse error: ' + data }) });
+
+        } catch (e) {
+
+          resolve({
+            statusCode: 500,
+            body: JSON.stringify({ error: data })
+          });
+
         }
+
       });
+
     });
 
     req.on('error', (e) => {
-      resolve({ statusCode: 500, body: JSON.stringify({ error: e.message }) });
+      resolve({
+        statusCode: 500,
+        body: JSON.stringify({ error: e.message })
+      });
     });
 
     req.write(postData);
     req.end();
+
   });
+
 };
