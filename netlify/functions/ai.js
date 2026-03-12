@@ -9,25 +9,35 @@ exports.handler = async function(event) {
     };
   }
 
-  const API_KEY = process.env.GEMINI_API_KEY;
+  const API_KEY = process.env.GROQ_API_KEY;
 
   try {
 
     const body = JSON.parse(event.body || "{}");
-    const userMsg = body.messages?.slice(-1)[0]?.content || "Hello";
+
+    let userMsg = "Hello";
+
+    if (body.messages && body.messages.length) {
+      userMsg = body.messages[body.messages.length - 1].content;
+    }
 
     const payload = JSON.stringify({
-      contents: [{
-        parts: [{ text: userMsg }]
-      }]
+      model: "llama3-8b-8192",
+      messages: [
+        {
+          role: "user",
+          content: userMsg
+        }
+      ]
     });
 
     const options = {
-      hostname: "generativelanguage.googleapis.com",
-      path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+      hostname: "api.groq.com",
+      path: "/openai/v1/chat/completions",
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${API_KEY}`
       }
     };
 
@@ -51,7 +61,7 @@ exports.handler = async function(event) {
     const json = JSON.parse(response);
 
     const text =
-      json.candidates?.[0]?.content?.parts?.[0]?.text ||
+      json?.choices?.[0]?.message?.content ||
       "AI tidak memberi jawaban.";
 
     return {
@@ -61,7 +71,9 @@ exports.handler = async function(event) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        content: [{ type: "text", text }]
+        content: [
+          { type: "text", text }
+        ]
       })
     };
 
