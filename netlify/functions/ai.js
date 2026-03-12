@@ -15,20 +15,33 @@ exports.handler = async function(event) {
 
     const body = JSON.parse(event.body || "{}");
 
-    let userMsg = "Hello";
+    let userMsg = "";
+    let systemMsg = "";
 
     if (body.messages && body.messages.length) {
       userMsg = body.messages[body.messages.length - 1].content;
     }
 
+    if (body.prompt && !userMsg) {
+      userMsg = body.prompt;
+    }
+
+    if (body.system) {
+      systemMsg = body.system;
+    }
+
+    if (!userMsg) {
+      userMsg = "hello";
+    }
+
     const payload = JSON.stringify({
       model: "llama3-8b-8192",
       messages: [
-        {
-          role: "user",
-          content: userMsg
-        }
-      ]
+        { role: "system", content: systemMsg },
+        { role: "user", content: userMsg }
+      ],
+      temperature: 0.7,
+      max_tokens: 800
     });
 
     const options = {
@@ -71,9 +84,7 @@ exports.handler = async function(event) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        content: [
-          { type: "text", text }
-        ]
+        content: [{ type: "text", text }]
       })
     };
 
