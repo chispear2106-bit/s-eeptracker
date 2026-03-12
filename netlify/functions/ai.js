@@ -2,45 +2,55 @@ const https = require("https");
 
 exports.handler = async function(event) {
 
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      body: "Method Not Allowed"
+    };
+  }
+
+  const API_KEY = process.env.GEMINI_API_KEY;
+
   try {
 
     const body = JSON.parse(event.body || "{}");
 
     const system = body.system || "";
-    const messages = body.messages || [];
+    const userMsg =
+      body.messages?.[body.messages.length - 1]?.content ||
+      "halo";
+
+    const prompt = system + "\n\n" + userMsg;
 
     const payload = JSON.stringify({
-      model: "llama3-8b-8192",
-      messages: [
-        { role: "system", content: system },
-        ...messages
+      contents: [
+        {
+          parts: [{ text: prompt }]
+        }
       ]
     });
 
     const options = {
-      hostname: "api.groq.com",
-      path: "/openai/v1/chat/completions",
+      hostname: "generativelanguage.googleapis.com",
+      path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + process.env.GROQ_API_KEY
+        "Content-Type": "application/json"
       }
     };
 
     const response = await new Promise((resolve) => {
 
-      const req = https.request(options, res => {
+      const req = https.request(options, (res) => {
 
         let data = "";
 
         res.on("data", chunk => data += chunk);
-
         res.on("end", () => resolve(data));
 
       });
 
       req.on("error", () => resolve("{}"));
-
       req.write(payload);
       req.end();
 
@@ -49,26 +59,26 @@ exports.handler = async function(event) {
     const json = JSON.parse(response);
 
     const text =
-      json?.choices?.[0]?.message?.content ||
+      json?.candidates?.[0]?.content?.parts?.[0]?.text ||
       "AI tidak memberi jawaban.";
 
     return {
       statusCode: 200,
-      headers:{
-        "Access-Control-Allow-Origin":"*",
-        "Content-Type":"application/json"
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        content:[{type:"text",text}]
+        content: [{ type: "text", text }]
       })
     };
 
-  } catch(err){
+  } catch (err) {
 
     return {
-      statusCode:200,
+      statusCode: 200,
       body: JSON.stringify({
-        content:[{type:"text",text:"AI error: "+err.message}]
+        content: [{ type: "text", text: "AI error: " + err.message }]
       })
     };
 
