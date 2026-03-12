@@ -862,8 +862,30 @@ function savePetName(){var name=document.getElementById('petNi').value.trim();if
 function loadPetName(){var l=localStorage.getItem('petName');if(l){petData.name=l;return;}window.fsGet(window.fsDoc(window.db,'pet','shared')).then(function(d){if(d.exists()&&d.data().name){petData.name=d.data().name;renderPet();}}).catch(function(){});}
 
 async function callAI(sys,prompt){
-  var r=await fetch('/.netlify/functions/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[{role:'user',content:prompt}]})});
-  var d=await r.json();return d.content[0].text;
+
+  const r = await fetch('/.netlify/functions/ai',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json'
+    },
+    body: JSON.stringify({
+      system: sys,
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
+    })
+  });
+
+  const d = await r.json();
+
+  if(!d || !d.content || !d.content[0]){
+    throw new Error("AI tidak memberi jawaban");
+  }
+
+  return d.content[0].text;
 }
 function sSum(who){var en=E.filter(function(e){return e.who===who}).slice(0,7);if(!en.length)return 'Belum ada data.';return en.map(function(e){return e.date+': tidur '+e.sleep+' bangun '+e.wake+' ('+Math.floor(e.mins/60)+'j'+e.mins%60+'m, '+e.stars+'★)'}).join('\n');}
 function mSum(who){return currentMoods[who]?'Mood: '+MOODS[currentMoods[who].idx].l:'Belum ada data mood.';}
