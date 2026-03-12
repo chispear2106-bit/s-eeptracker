@@ -14,7 +14,17 @@ exports.handler = async function(event) {
   try {
 
     const body = JSON.parse(event.body || "{}");
-    const userMsg = body.messages?.slice(-1)[0]?.content || "Hello";
+
+    // ambil pesan user dengan aman
+    let userMsg = "Hello";
+
+    if (body.messages && body.messages.length > 0) {
+      userMsg = body.messages[body.messages.length - 1].content;
+    }
+
+    if (body.prompt) {
+      userMsg = body.prompt;
+    }
 
     const payload = JSON.stringify({
       contents: [{
@@ -50,9 +60,17 @@ exports.handler = async function(event) {
 
     const json = JSON.parse(response);
 
-    const text =
-      json.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "AI tidak memberi jawaban.";
+    let text = "AI tidak memberi jawaban.";
+
+    if (json.candidates &&
+        json.candidates[0] &&
+        json.candidates[0].content &&
+        json.candidates[0].content.parts &&
+        json.candidates[0].content.parts[0]) {
+
+      text = json.candidates[0].content.parts[0].text;
+
+    }
 
     return {
       statusCode: 200,
@@ -61,7 +79,9 @@ exports.handler = async function(event) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        content: [{ type: "text", text }]
+        content: [
+          { type: "text", text }
+        ]
       })
     };
 
