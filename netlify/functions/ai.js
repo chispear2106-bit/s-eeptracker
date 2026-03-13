@@ -28,45 +28,6 @@ exports.handler = async function(event) {
 
     const data = await response.json();
 
-    let text = "AI tidak memberi jawaban.";
+    let text = "";
 
-    if (Array.isArray(data) && data[0]?.generated_text) {
-      text = data[0].generated_text;
-    }
-
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        content: [
-          {
-            type: "text",
-            text: text
-          }
-        ]
-      })
-    };
-
-  } catch (err) {
-
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*"
-      },
-      body: JSON.stringify({
-        content: [
-          {
-            type: "text",
-            text: "AI error: " + err.message
-          }
-        ]
-      })
-    };
-
-  }
-
-};
+    if (Array.isArray(data) && data[
