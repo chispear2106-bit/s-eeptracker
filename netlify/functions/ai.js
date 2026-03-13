@@ -1,12 +1,5 @@
 exports.handler = async function(event) {
 
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: "Method Not Allowed"
-    };
-  }
-
   try {
 
     const body = JSON.parse(event.body || "{}");
@@ -28,6 +21,46 @@ exports.handler = async function(event) {
 
     const data = await response.json();
 
-    let text = "";
+    let text = "AI tidak memberi jawaban.";
 
-    if (Array.isArray(data) && data[
+    if (Array.isArray(data) && data[0] && data[0].generated_text) {
+      text = data[0].generated_text;
+    }
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        content: [
+          {
+            type: "text",
+            text: text
+          }
+        ]
+      })
+    };
+
+  } catch (err) {
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        content: [
+          {
+            type: "text",
+            text: "Server error: " + err.message
+          }
+        ]
+      })
+    };
+
+  }
+
+};
