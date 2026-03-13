@@ -2,25 +2,24 @@ const https = require("https");
 
 exports.handler = async function(event) {
 
-  const API_KEY = process.env.OPENROUTER_API_KEY;
+  const API_KEY = process.env.HF_API_KEY;
 
   const body = JSON.parse(event.body || "{}");
 
-  const system = body.system || "";
   const userMsg =
-    body.messages?.slice(-1)[0]?.content || "halo";
+    body.messages?.slice(-1)[0]?.content ||
+    "beri saran tidur";
 
   const payload = JSON.stringify({
-    model: "meta-llama/llama-3-8b-instruct",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userMsg }
-    ]
+    inputs: userMsg,
+    parameters: {
+      max_new_tokens: 120
+    }
   });
 
   const options = {
-    hostname: "openrouter.ai",
-    path: "/api/v1/chat/completions",
+    hostname: "api-inference.huggingface.co",
+    path: "/models/mistralai/Mistral-7B-Instruct-v0.2",
     method: "POST",
     headers: {
       "Authorization": `Bearer ${API_KEY}`,
@@ -44,6 +43,12 @@ exports.handler = async function(event) {
 
   });
 
+  const json = JSON.parse(response);
+
+  const text =
+    json?.[0]?.generated_text ||
+    "AI tidak memberi jawaban.";
+
   return {
     statusCode: 200,
     headers:{
@@ -51,12 +56,7 @@ exports.handler = async function(event) {
       "Content-Type":"application/json"
     },
     body: JSON.stringify({
-      content:[
-        {
-          type:"text",
-          text: response
-        }
-      ]
+      content:[{type:"text",text}]
     })
   };
 
