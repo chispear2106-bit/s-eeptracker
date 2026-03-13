@@ -881,9 +881,17 @@ async function callAI(sys,prompt){
 
   const d = await r.json();
 
-  if(!d || !d.content || !d.content[0]){
-    throw new Error("AI tidak memberi jawaban");
-  }
+  let text =
+ d?.content?.[0]?.text ||
+ d?.choices?.[0]?.message?.content ||
+ d?.[0]?.generated_text ||
+ null;
+
+if(!text){
+ throw new Error("AI tidak memberi jawaban");
+}
+
+return text;
 
   return d.content[0].text;
 }
