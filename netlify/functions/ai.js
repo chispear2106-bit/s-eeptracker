@@ -8,8 +8,7 @@ exports.handler = async function(event) {
 
   const system = body.system || "";
   const userMsg =
-    body.messages?.[body.messages.length - 1]?.content ||
-    "halo";
+    body.messages?.slice(-1)[0]?.content || "halo";
 
   const payload = JSON.stringify({
     model: "meta-llama/llama-3-8b-instruct",
@@ -45,12 +44,6 @@ exports.handler = async function(event) {
 
   });
 
-  const json = JSON.parse(response);
-
-  const text =
-    json?.choices?.[0]?.message?.content ||
-    "AI tidak memberi jawaban.";
-
   return {
     statusCode: 200,
     headers:{
@@ -58,7 +51,12 @@ exports.handler = async function(event) {
       "Content-Type":"application/json"
     },
     body: JSON.stringify({
-      content:[{type:"text",text}]
+      content:[
+        {
+          type:"text",
+          text: response
+        }
+      ]
     })
   };
 
