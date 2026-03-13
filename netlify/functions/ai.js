@@ -1,5 +1,3 @@
-const fetch = require("node-fetch");
-
 exports.handler = async function(event) {
 
   if (event.httpMethod !== "POST") {
@@ -55,9 +53,17 @@ exports.handler = async function(event) {
   } catch (err) {
 
     return {
-      statusCode: 500,
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*"
+      },
       body: JSON.stringify({
-        error: err.message
+        content: [
+          {
+            type: "text",
+            text: "AI error: " + err.message
+          }
+        ]
       })
     };
 
