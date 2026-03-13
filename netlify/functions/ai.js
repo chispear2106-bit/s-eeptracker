@@ -8,8 +8,10 @@ exports.handler = async function(event) {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": "Bearer OPENROUTER_KEY_LU",
-        "Content-Type": "application/json"
+        "Authorization": "Bearer sk-or-v1-APIKEYLU",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://yourapp.netlify.app",
+        "X-Title": "Sleep Tracker AI"
       },
       body: JSON.stringify({
         model: "mistralai/mistral-7b-instruct",
@@ -24,11 +26,9 @@ exports.handler = async function(event) {
 
     const data = await response.json();
 
-    let text = "AI tidak memberi jawaban.";
-
-    if (data.choices && data.choices[0]) {
-      text = data.choices[0].message.content;
-    }
+    const text =
+      data?.choices?.[0]?.message?.content ||
+      "AI tidak memberi jawaban";
 
     return {
       statusCode: 200,
@@ -57,7 +57,7 @@ exports.handler = async function(event) {
         content: [
           {
             type: "text",
-            text: "Error: " + err.message
+            text: "Server error: " + err.message
           }
         ]
       })
